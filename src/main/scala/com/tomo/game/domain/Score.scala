@@ -1,0 +1,13 @@
+package com.tomo.game.domain
+
+object Score {
+  val straightFlush = ???
+  val fourOfAKind = ???
+  val fullHouse = ???
+  val flush = ???
+  val straight = ???
+  val threeOfAKind = ???
+  val twoPair = ???
+  val singlePair = ???
+  val singleCard = ???
+}

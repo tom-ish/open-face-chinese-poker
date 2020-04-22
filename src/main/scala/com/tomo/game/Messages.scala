@@ -44,6 +44,7 @@ object Messages {
     case class DrawTime(phase: Phase, deck: List[Card], playersSession: List[PlayerSession])
     case class SetUp(opponents: List[Player])
     case class InTurn(top: Option[Card], state: PlayerState, opponentsState: List[PlayerState])
+    case object ComputeScore
     case object Win
     case object Lost
     case object Restart

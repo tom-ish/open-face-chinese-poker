@@ -14,12 +14,10 @@ import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 object GameSupervisorActor {
-  case class PlayerInformation(session: PlayerSession, playerState: PlayerState)
 
   case class GameState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerDeck], playerIterator: Iterator[(ActorRef, PlayerSession)])
   case class DrawState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerDeck], nbCardsDistributed: Int, playerIterator: Iterator[(ActorRef, PlayerSession)])
   case class StateResult(newState: GameRoomActor.GameState)
-  case object ComputeScore
   case object UnavailableRequest
 
   object Messages {
@@ -49,7 +47,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
   }
 
   def initializing: Receive = {
-    case GameRoomActor.Messages.ReceivePlayers(playersList: List[PlayerSession]) => {
+    case GameSupervisorActor.Messages.ReceivePlayers(playersList: List[PlayerSession]) => {
       playersList.foreach { p =>
         players = players + (p.ref -> p)
         context.watch(p.ref)
@@ -170,7 +168,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
           phase match {
             case FifthDraw =>
               context become computeScore(gameState.visibleDeck)
-              self ! GameSupervisorActor.ComputeScore
+              self ! Messages.Game.ComputeScore
             case _ =>
               val nextInitialDistributeState = GameSupervisorActor.DrawState(phase.next, deck, visibleDeck, 0, players.iterator)
               context become distributing(nextInitialDistributeState)
@@ -180,8 +178,8 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
   }
 
   def computeScore(visibleDeck: Map[PlayerSession, PlayerDeck]): Receive = {
-    val scoreComputer = context.actorOf(Props(ScoreEngineActor.props(visibleDeck), "score-engine"))
-    scoreComputer ! Messages.Game.ComputeScore
+    val scoreComputer = context.actorOf(ScoreEngineActor.props(visibleDeck), "score-engine")
+    val score = scoreComputer ? Messages.Game.ComputeScore
   }
 
 
