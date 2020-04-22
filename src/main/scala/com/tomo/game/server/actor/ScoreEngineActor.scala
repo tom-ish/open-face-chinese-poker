@@ -19,6 +19,8 @@ class ScoreEngineActor(val playersDecks: Map[PlayerSession, PlayerDeck]) extends
     case Messages.Game.ComputeScore =>
       val rslt: SortedMap[Int, PlayerSession] = SortedMap()
       //TODO compute the score for all players <=> engine for 2 as well as 3 players
+      // Check if the PlayerDeck is valid <=> the order of strength does not go top to bottom
+      val validPlayer = playersDecks.filter(playerDeck => playerDeck._2.isValid)
 
       playersDecks.foreachEntry { (playerSession, playerDeck) =>
         val positionScores = playerDeck.deck map {

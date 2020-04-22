@@ -46,6 +46,8 @@ object PlayerDeck {
 case class PlayerDeck(deck: Map[Position, CardStack]) {
   def merge(cards: PlayerDeck): PlayerDeck = PlayerDeck(deck ++ cards.deck)
 
+  def isValid: Boolean =
+
   override def toString: String = deck.mkString(" | ")
 }
 
