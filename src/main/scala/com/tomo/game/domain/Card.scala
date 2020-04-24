@@ -73,9 +73,13 @@ object Card {
   }
 }
 
-case class Card(rank: Rank, suit: Suit) {
+case class Card(rank: Rank, suit: Suit) extends Ordered[Card] {
   def name(): String = s"${rank.name} of ${suit.name}"
   def shortName(): String = s"${rank.shortName}${suit.shortName}"
+
+  override def compare(that: Card): Int = {
+    Ordering[Int].compare(this.rank.value, that.rank.value)
+  }
 
   override def toString: String = shortName()
 }
