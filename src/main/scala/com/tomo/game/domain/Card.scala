@@ -41,6 +41,24 @@ object Rank {
 
   def all: List[Rank] = List(Ace(), Two(), Three(), Four(), Five(), Six(), Seven(), Eight(), Nine(), Ten(), Jack(), Queen(), King())
 
+  implicit def get(i: Int) = i match {
+    case 1 => Ace() // Avoid to use this, use 14 instead
+    case 2 => Two()
+    case 3 => Three()
+    case 4 => Four()
+    case 5 => Five()
+    case 6 => Six()
+    case 7 => Seven()
+    case 8 => Eight()
+    case 9 => Nine()
+    case 10 => Ten()
+    case 11 => Jack()
+    case 12 => Queen()
+    case 13 => King()
+    case 14 => Ace()
+    case _ => throw new RuntimeException("Error: card number undefined")
+  }
+
   implicit def string2rank(s: String) : Rank = s match {
     case "A" => Ace()
     case "2" => Two()
