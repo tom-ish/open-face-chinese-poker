@@ -17,7 +17,7 @@ class LobbyActor extends Actor with ActorLogging {
   def tryMakeMatch = waitingPlayers.length match {
     case x if x == 2 || x == 3 =>
       val gameRoom = GameRoom(name = Utils.uuid())
-      val gameRoomRef = context.system.actorOf(GameSupervisorActor.props(gameRoom))
+      val gameRoomRef = context.system.actorOf(GameSupervisorActor.props(gameRoom), "game-supervisor")
 
       val playersMatched = waitingPlayers.take(x)
       waitingPlayers = waitingPlayers.drop(x)

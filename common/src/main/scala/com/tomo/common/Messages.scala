@@ -5,13 +5,16 @@ import main.scala.com.tomo.common.domain._
 object Messages {
   object Server {
     case class Connect(player: Player)
-    case class Connected()
-    case class Message(message: String)
+    case class Connected() extends Serializable
+    case class Message(message: String) extends Serializable
   }
 
   object Player {
     case class Accept()
     case class Refuse()
+    trait Interaction
+    case class PlayerMoves(positionMove: (Position, List[Card])) extends Interaction
+    case object PlayerInvalidInput extends Interaction
   }
 
   object Game {

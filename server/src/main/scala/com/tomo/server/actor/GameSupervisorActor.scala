@@ -12,7 +12,6 @@ import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
-
 import akka.pattern.ask
 
 object GameSupervisorActor {
@@ -40,16 +39,19 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
 
     val deck = CardStack.shuffled.cards
 
-    val initialDrawState = GameSupervisorActor.DrawState(FirstDraw, deck, Map.empty, 0, players.iterator)
-    context become distributing(initialDrawState)
-
     // INTRODUCE PLAYERS
-    playersSessions.foreach(_.ref ! Messages.Game.SetUp)
+    playersSessions.foreach(_.ref ! Messages.Game.SetUp(playersSessions.map(_.player)))
+
+    val emptyVisibleDeck = playersSessions map (_ -> PlayerDeck.empty)
+    val initialDrawState = GameSupervisorActor.DrawState(FirstDraw, deck, emptyVisibleDeck.toMap, 0, players.iterator)
+    context become distributing(initialDrawState)
+    self ! Messages.Game.DrawTime
   }
 
   def initializing: Receive = {
     case GameSupervisorActor.Messages.ReceivePlayers(playersList: List[PlayerSession]) => {
       playersList.foreach { p =>
+        println(s"received $p")
         players += (p.ref -> p)
         context.watch(p.ref)
       }
@@ -65,7 +67,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
       val nbCardsDistributed = drawState.nbCardsDistributed
       val playerIterator = drawState.playerIterator
 
-      val playerToGiveToOption: Option[(ActorRef, PlayerSession)] = playerIterator.nextOption()
+      val playerToGiveToOption = playerIterator.nextOption()
       playerToGiveToOption match {
         /**
          * update State with:
@@ -75,9 +77,9 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
          **/
         case Some((playerRef, _)) =>
           val cardToGive = drawState.deck.cards.take(1)
-          val i = nbCardsDistributed+1
-          val nextDrawState = GameSupervisorActor.DrawState(phase, deck.cards.drop(1), visibleDeck, i, playerIterator)
-          playerRef ! Messages.Game.GiveCard(cardToGive.head, phase, i)
+          val nextDrawState = GameSupervisorActor.DrawState(phase, deck.cards.drop(1), visibleDeck, nbCardsDistributed, playerIterator)
+          println(nextDrawState)
+          playerRef ! Messages.Game.GiveCard(cardToGive.head, phase, nbCardsDistributed)
           context become distributing(nextDrawState)
           self ! Messages.Game.DrawTime
 
@@ -88,8 +90,8 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
          **/
         case None =>
           drawState.nbCardsDistributed match {
-            case n if n < players.size * drawState.phase.nbCard =>
-              val nextDrawState = GameSupervisorActor.DrawState(phase, deck, visibleDeck, nbCardsDistributed, players.iterator)
+            case i if i < drawState.phase.nbCard =>
+              val nextDrawState = GameSupervisorActor.DrawState(phase, deck, visibleDeck, nbCardsDistributed+1, players.iterator)
               context become distributing(nextDrawState)
               self ! Messages.Game.DrawTime
 
@@ -98,8 +100,8 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
              *  - initialize the first player info with an empty hand
              *  - change the state of the GameSupervisorActor to 'playing'
              */
-            case n if n == players.size * drawState.phase.nbCard =>
-              val initialGameState = GameSupervisorActor.GameState(FirstDraw, deck, Map.empty, players.iterator)
+            case i if i == drawState.phase.nbCard =>
+              val initialGameState = GameSupervisorActor.GameState(FirstDraw, deck, visibleDeck, players.iterator)
               context become playing(initialGameState)
               self ! Messages.Game.PlayTime
 
@@ -142,22 +144,34 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with ActorLogging {
        **/
       currentPlayerOption match {
         case Some((currentPlayerRef, currentPlayerSession)) =>
+
+          visibleDeck.foreach(println)
+
           val playerVisibleDeck = visibleDeck(currentPlayerSession)
 
           val playerMovesFuture = currentPlayerRef ? Messages.Game.AskMoves(phase) // TODO
 
           playerMovesFuture onComplete {
-            case Success((playerNewCards: PlayerDeck, _)) => // TODO
-              val playerNewDeck = PlayerDeck(playerVisibleDeck.deck ++ playerNewCards.deck)
+            case Success(Messages.Player.PlayerInvalidInput) => // Invalid user inputs: Retry
+              println(s"$currentPlayerSession: invalid moves... Please retry")
+              self ! Messages.Game.PlayTime
+
+            case Success(Messages.Player.PlayerMoves(positionMoves)) =>
+              // the corresponding position cards visible by all
+              val playerPositionCards = playerVisibleDeck.deck(positionMoves._1)
+              // the cooresponding position cards + the cards played for the same position
+              val newPlayerPositionCards = playerPositionCards.cards ++ positionMoves._2
+              // the global player deck visible by all
+              val playerNewDeck = PlayerDeck(playerVisibleDeck.deck ++ Map((positionMoves._1 -> CardStack(newPlayerPositionCards))))
+              // the global decks of all players
               val allVisibleDecks = gameState.visibleDeck ++ Map(currentPlayerSession -> playerNewDeck)
               val updatedGameState = GameSupervisorActor.GameState(phase, deck, allVisibleDecks, playerIterator)
               context become playing(updatedGameState)
               self ! Messages.Game.PlayTime
 
-            // TODO Retry mechanism
             case Failure(e) =>
-              println(s"$currentPlayerSession: invalid moves... ${e.getMessage}\nPlease retry")
-
+              println("Failure on getting player moves...")
+              self ! Messages.Game.PlayTime
           }
 
         /**

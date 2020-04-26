@@ -65,22 +65,41 @@ class PlayerActor extends Actor with ActorLogging {
       gameRoom = room
       gameRoomRef = sender
 
-      println(s"You have joined a game room: ${gameRoom.name}")
+      println(s"You have joined the game room: ${gameRoom.name}")
       context become waitingToStart
   }
 
   def waitingToStart: Receive = {
     case Messages.Game.SetUp(players) =>
       opponents = players
-      println(s"You are playing with ${opponents.map(_.name).mkString(", ")}")
+      println(s"You are playing against ${opponents.filterNot(_ == me).mkString(", ")}")
       context become drawing
   }
 
   def drawing: Receive = {
     case Messages.Game.GiveCard(card, phase, i) =>
-      myHand = CardStack(myHand.cards ++ List(card))
-      if (phase.nbCard == i)
+      if (phase.nbCard == i) {
+        val userInstructions =
+          s""" ============ $phase ============
+            | $myHand
+            | ===================================
+            |             Play Time
+            | Please send your moves as follow:
+            |   - T=indexesTop
+            |   - M=indexesMiddle
+            |   - B=indexesBottom
+            | Each indexes corresponds to the
+            | index of the card in your hand:
+            |""".stripMargin
+
+        val cardsWithIndex = myHand.cards.zipWithIndex
+        println(userInstructions)
+        cardsWithIndex.foreach(cardIndex => println(s"${cardIndex._2} - ${cardIndex._1}\n"))
+        println("===================================")
         context become play
+      }
+      else
+        myHand = CardStack(myHand.cards ++ List(card))
   }
 
   def play: Receive = {
@@ -95,9 +114,13 @@ class PlayerActor extends Actor with ActorLogging {
     case Messages.Game.AskMoves(phase) =>
       println(s"[$phase] It's your turn.")
       Utils.readResponse.onComplete {
-        case Success(moves: String) =>
+        case Success(input: String) =>
           // TODO: Parse received string into PlayerDeck <=> Map[Position, CardStack]
-          sender ! moves
+          val movePosition = Utils.readMove(input, myHand.cards)
+          movePosition match {
+            case Some(move) => Messages.Player.PlayerMoves(move)
+            case None => sender ! Messages.Player.PlayerInvalidInput
+          }
           context become drawing
         case _ => self ! PoisonPill
       }
