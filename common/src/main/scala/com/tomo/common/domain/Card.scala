@@ -4,8 +4,16 @@ import main.scala.com.tomo.common.Utils
 
 import scala.util.Random
 
-abstract class Suit(val name: String, val shortName: String) extends Serializable
-abstract class Rank(val value: Int, val name: String, val shortName: String) extends Serializable with Ordered[Rank]
+abstract class Suit(val name: String, val shortName: String) extends Serializable {
+  override def equals(obj: Any): Boolean = obj match {
+    case that: Suit => name == that.name && shortName == that.shortName
+  }
+}
+abstract class Rank(val value: Int, val name: String, val shortName: String) extends Serializable with Ordered[Rank] {
+  override def equals(obj: Any): Boolean = obj match {
+    case that: Rank => value == that.value && name == that.name && shortName == that.shortName
+  }
+}
 
 object Suit {
   case class Clubs() extends Suit("Clubs", "♣")
@@ -136,6 +144,13 @@ case class Card(rank: Rank, suit: Suit) extends Ordered[Card] {
 
   override def compare(that: Card): Int = {
     Ordering[Int].compare(this.rank.value, that.rank.value)
+  }
+
+
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[Card]
+
+  override def equals(obj: Any): Boolean = obj match {
+    case that: Card => canEqual(that) && rank == that.rank && suit == that.suit
   }
 
   override def toString: String = shortName()

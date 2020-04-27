@@ -1,27 +1,36 @@
 package main.scala.com.tomo.common
 
+import akka.actor.ActorRef
 import main.scala.com.tomo.common.domain._
 
 object Messages {
   object Server {
     case class Connect(player: Player)
-    case class Connected()
-    case class Message(message: String)
+    case class Connected() extends Serializable
+    case class Message(message: String) extends Serializable
   }
 
   object Player {
     case class Accept()
     case class Refuse()
+    trait Interaction
+    case class PlayerMoves(positionMove: (Position, List[Card])) extends Interaction
+    case object PlayerInvalidInput extends Interaction
   }
 
   object Game {
     case class Joined(room: GameRoom)
+    case class SetUp(opponents: List[Player])
     case class GiveCard(card: Card, phase: Phase, nbCardGiven: Int)
-    case class AskMoves(phase: Phase)
+    case object AskMoves
+    case class AskMovesAgain(playerRef: ActorRef)
+    case class UpdateGameState(allVisibleDecks: Map[Player, PlayerDeck], player: Player)
+    case class PlayerTurn(phase: Phase)
+    case object PlayerTurnEnded
     case object DrawTime
     case object PlayTime
-    case class DrawTime(phase: Phase, deck: List[Card], playersSession: List[PlayerSession])
-    case class SetUp(opponents: List[Player])
+    case object ScoreTime
+    case class NotYourTurn(playerTurn: Player)
     case object Win
     case object Lost
     case object Restart
@@ -39,6 +48,7 @@ object Messages {
       def apply(t: Throwable): Reason.ErrorOccured = Reason.ErrorOccured(t)
     }
     case class Terminate(reason: Terminate.Reason)
+
   }
 
   object Score {
