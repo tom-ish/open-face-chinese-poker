@@ -9,12 +9,13 @@ object PlayerScore {
 }
 
 object PlayerDeck {
-  def empty = PlayerDeck(deck = Map.empty)
+  def empty = PlayerDeck(deck = Map(Bottom -> CardStack.empty, Middle -> CardStack.empty, Top -> CardStack.empty))
 
   implicit def map2deck(deck: Map[Position, CardStack]) = PlayerDeck(deck)
 }
 case class PlayerDeck(deck: Map[Position, CardStack]) {
   def merge(cards: PlayerDeck): PlayerDeck = PlayerDeck(deck ++ cards.deck)
+  def add(cards: CardStack, position: Position) = deck + (position -> cards)
 
   override def toString: String = deck.mkString(" | ")
 }
