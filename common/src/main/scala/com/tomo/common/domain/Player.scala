@@ -30,3 +30,6 @@ case object Middle extends Position(position = 1, nbCards = 5) {
 case object Bottom extends Position(position = 2, nbCards = 5) {
   override def compare(that: Position): Int = Ordering[Int].compare(position, that.position)
 }
+case object DroppedCard extends Position(position = -1, nbCards = -1) {
+  override def compare(that: Position): Int = Ordering[Int].compare(position, that.position)
+}

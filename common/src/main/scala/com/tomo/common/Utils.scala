@@ -2,7 +2,7 @@ package main.scala.com.tomo.common
 
 import java.util.UUID
 
-import main.scala.com.tomo.common.domain.{Bottom, Card, Middle, Position, Top}
+import main.scala.com.tomo.common.domain.{Bottom, Card, DroppedCard, Middle, Position, Top}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -39,16 +39,18 @@ object Utils {
         getCardsInPosition(Middle, cardsIndexes, playerCards)
       case "B" =>
         getCardsInPosition(Bottom, cardsIndexes, playerCards)
+      case "D" =>
+        getCardsInPosition(DroppedCard, cardsIndexes, playerCards)
     }
     resultingRowDeck
   }
 
   private def getCardsInPosition(position: Position, cardsIndexes: Array[String],
                                  playerCards: List[Card]): Option[(Position, List[Card])] = {
-    if (cardsIndexes.length > position.nbCards) None
-    else if (!cardsIndexes.forall(_.length == 1)) None
-    else if (!cardsIndexes.forall(_.toInt <= 5)) None
-    else if (cardsIndexes.isEmpty) Some(position -> List.empty)
+    if (position != DroppedCard && cardsIndexes.length > position.nbCards) None
+    else if (!cardsIndexes.forall(_.length == 1)) None // if input string is more than 1 character
+    else if (!cardsIndexes.forall(_.toInt <= 5)) None  // if input integer is more than 5
+    else if (cardsIndexes.isEmpty) Some(position -> List.empty) // if input is P=empty => considering empty position deck
     else {
       val cards = cardsIndexes.map(i => playerCards(i.toInt))
       Some(position, cards.toList)

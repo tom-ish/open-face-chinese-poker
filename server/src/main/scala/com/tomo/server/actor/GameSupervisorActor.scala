@@ -14,8 +14,8 @@ import scala.language.postfixOps
 
 object GameSupervisorActor {
 
-  case class GameState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerDeck], playersHands: Map[PlayerSession, CardStack], currentPlayer: Option[(ActorRef, PlayerSession)], playerIterator: Iterator[(ActorRef, PlayerSession)])
-  case class DrawState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerDeck], playersHands: Map[PlayerSession, CardStack], nbCardsDistributed: Int, playerIterator: Iterator[(ActorRef, PlayerSession)])
+  case class GameState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerDeck], playersHands: Map[PlayerSession, CardStack], playersDroppedCards: Map[PlayerSession, List[Card]], currentPlayer: Option[(ActorRef, PlayerSession)], playerIterator: Iterator[(ActorRef, PlayerSession)])
+  case class DrawState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerDeck], playersHands: Map[PlayerSession, CardStack], playersDroppedCards: Map[PlayerSession, List[Card]], nbCardsDistributed: Int, playerIterator: Iterator[(ActorRef, PlayerSession)])
   case object UnavailableRequest
 
   object Messages {
@@ -43,7 +43,8 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
 
     val emptyVisibleDeck = playersSessions map(_ -> PlayerDeck.empty)
     val emptyPlayersHands = playersSessions map (_ -> CardStack.empty)
-    val initialDrawState = GameSupervisorActor.DrawState(FirstDraw, deck, emptyVisibleDeck.toMap, emptyPlayersHands.toMap, 0, players.iterator)
+    val emptyPlayersDroppedCards = playersSessions map (_ -> List.empty)
+    val initialDrawState = GameSupervisorActor.DrawState(FirstDraw, deck, emptyVisibleDeck.toMap, emptyPlayersHands.toMap, emptyPlayersDroppedCards.toMap, 0, players.iterator)
     context become distributing(initialDrawState)
     self ! Messages.Game.DrawTime
   }
@@ -65,6 +66,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
       val deck = drawState.deck
       val visibleDeck = drawState.visibleDeck
       val playersHands = drawState.playersHands
+      val playersDroppedCards = drawState.playersDroppedCards
       val nbCardsDistributed = drawState.nbCardsDistributed
       val playerIterator = drawState.playerIterator
 
@@ -80,7 +82,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
           val cardToGive = drawState.deck.cards.take(1)
           val playerHand = CardStack(playersHands(playerSession).cards ++ cardToGive)
           val newPlayersHands = playersHands + (playerSession -> playerHand)
-          val nextDrawState = GameSupervisorActor.DrawState(phase, deck.cards.drop(1), visibleDeck, newPlayersHands, nbCardsDistributed, playerIterator)
+          val nextDrawState = GameSupervisorActor.DrawState(phase, deck.cards.drop(1), visibleDeck, newPlayersHands, playersDroppedCards, nbCardsDistributed, playerIterator)
           playerRef ! Messages.Game.GiveCard(cardToGive.head, phase, nbCardsDistributed)
           log.info(s"[$phase] gave card ${cardToGive.head} to ${playerSession.player.name}")
           context become distributing(nextDrawState)
@@ -99,7 +101,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
           nbCardsDistributed match {
             case i if i < drawState.phase.nbCard =>
               log.info("distributing one more card to all")
-              val nextDrawState = GameSupervisorActor.DrawState(phase, deck, visibleDeck, playersHands, nbCardsDistributed, players.iterator)
+              val nextDrawState = GameSupervisorActor.DrawState(phase, deck, visibleDeck, playersHands, playersDroppedCards, nbCardsDistributed, players.iterator)
               context become distributing(nextDrawState)
               self ! Messages.Game.DrawTime
 
@@ -109,10 +111,11 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
              *  - change the state of the GameSupervisorActor to 'playing'
              */
             case i if i == drawState.phase.nbCard =>
-              log.info("PLAY TIME!")
-              val initialGameState = GameSupervisorActor.GameState(phase, deck, visibleDeck, playersHands, None, players.iterator)
-              context become playing(initialGameState)
               players.foreach(_._1 ! Messages.Game.PlayTime)
+              log.info("PLAY TIME!")
+              val emptyPlayersDroppedCards = players.map(_._2 -> List.empty).toMap
+              val initialGameState = GameSupervisorActor.GameState(phase, deck, visibleDeck, playersHands, emptyPlayersDroppedCards, None, players.iterator)
+              context become playing(initialGameState)
               self ! Messages.Game.PlayTime
 
             case _ => throw new RuntimeException("Error: should not distribute more cards to the players")
@@ -149,6 +152,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
       val phase = gameState.phase
       val visibleDeck = gameState.visibleDeck
       val playersHands = gameState.playersHands
+      val playersDroppedCards = gameState.playersDroppedCards
       val currentPlayerOption = gameState.playerIterator.nextOption()
       currentPlayerOption match {
         case Some(currentPlayer) =>
@@ -158,9 +162,9 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
           players
             .filterNot(_ == currentPlayer)
             .foreach(_._1 ! Messages.Game.NotYourTurn(currentPlayer._2.player))
-          val newGameState = GameSupervisorActor.GameState(gameState.phase, gameState.deck, gameState.visibleDeck, playersHands, currentPlayerOption, gameState.playerIterator)
+          val newGameState = GameSupervisorActor.GameState(gameState.phase, gameState.deck, gameState.visibleDeck, playersHands, playersDroppedCards, currentPlayerOption, gameState.playerIterator)
           context become playing(newGameState)
-          currentPlayer._1 ! Messages.Game.AskMoves
+          currentPlayer._1 ! Messages.Game.AskMoves(phase)
 
         case None =>
           phase match {
@@ -170,16 +174,18 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
               self ! Messages.Score.GetBoardPointWinner
             case _ =>
               val newEmptyPlayersHands = players.map(_._2 -> CardStack.empty).toMap
-              val nextInitialDistributeState = GameSupervisorActor.DrawState(phase.next, gameState.deck, visibleDeck, newEmptyPlayersHands, 0, players.iterator)
-              context become distributing(nextInitialDistributeState)
+              val nextInitialDrawState = GameSupervisorActor.DrawState(phase.next, gameState.deck, visibleDeck, newEmptyPlayersHands, playersDroppedCards, 0, players.iterator)
+              context become distributing(nextInitialDrawState)
               players.foreach(_._1 ! Messages.Game.DrawTime)
               self ! Messages.Game.DrawTime
           }
       }
 
     case Messages.Player.PlayerMoves(positionMoves) =>
+      val phase = gameState.phase
       val visibleDeck = gameState.visibleDeck
       val playersHands = gameState.playersHands
+      val playersDroppedCards = gameState.playersDroppedCards
       val currentPlayerOption = gameState.currentPlayer
       val positionToPlay = positionMoves._1
       val cardsToPlay = positionMoves._2
@@ -191,38 +197,59 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
 
         case Some(player) if player._1 == sender =>
           val playerSession = player._2
+          val playerDroppedCards = playersDroppedCards(player._2)
           val playerVisibleDeck = visibleDeck(playerSession)
           val cardsInHand = playersHands(playerSession)
 
           if (cardsToPlay.forall(cardsInHand.cards.contains(_))) {
             log.info(s"${playerSession.player.name} has just played: $positionMoves")
-            val newPlayerHand = CardStack(playersHands(playerSession).cards diff positionMoves._2)
-            val newPlayersHands = playersHands + (playerSession -> newPlayerHand)
 
-            // the corresponding position cards visible by all
-            val playerPositionCards = playerVisibleDeck.deck(positionToPlay)
-            // the corresponding position cards + the cards played for the same position
-            val newPlayerPositionCards = playerPositionCards.cards ++ cardsToPlay
-            log.info(s"Previous Cards: $positionToPlay -> $playerPositionCards")
-            log.info(s"New Cards: $positionToPlay -> $newPlayerPositionCards")
-            // the global player deck visible by all
-            val playerNewDeck = PlayerDeck(playerVisibleDeck.deck ++ Map(positionToPlay -> CardStack(newPlayerPositionCards)))
-            // the global decks of all players
-            val allVisibleDecks = gameState.visibleDeck ++ Map(player._2 -> playerNewDeck)
-
-            val updatedGameState = GameSupervisorActor.GameState(gameState.phase, gameState.deck, allVisibleDecks, newPlayersHands, currentPlayerOption, gameState.playerIterator)
-            context become playing(updatedGameState)
-
-            if(newPlayerHand.isEmpty) { // => End of current player's turn
-              log.info(s"${player._2.player} finished his turn.")
-              player._1 ! Messages.Game.PlayerTurnEnded
-              players
-                .filterNot(_._1 == player._1)
-                .foreach(_._1 ! Messages.Game.UpdateGameState(allVisibleDecks.map(deck => deck._1.player -> deck._2), player._2.player))
-              self ! Messages.Game.PlayTime
-            } else {  // Ask More Moves
+            // if !FirstDraw and player has not dropped a card yet whereas he is trying to play all its remaining cards, we refuse the move
+            if(phase != FirstDraw && positionToPlay != DroppedCard
+              && playerDroppedCards.size < phase.number-1 && cardsInHand.cards.size == cardsToPlay.size) {
+              val msg = "no card was dropped during this turn."
+              log.info(s"${player._2.player.name}: $msg")
+              player._1 ! Messages.Game.RefusedCards(cardsToPlay, msg)
               log.info(s"Still ${playerSession.player.name}'s turn...'")
               self ! Messages.Game.AskMovesAgain(player._1)
+            } // when user already dropped a card and is trying to drop another one
+            else if(phase != FirstDraw && positionToPlay == DroppedCard && playerDroppedCards.size == phase.number-1) {
+              val msg = "a card has already been dropped during this turn."
+              log.info(s"${player._2.player.name}: $msg")
+              player._1 ! Messages.Game.RefusedCards(cardsToPlay, msg)
+              log.info(s"Still ${playerSession.player.name}'s turn...'")
+              self ! Messages.Game.AskMovesAgain(player._1)
+            }
+            else {
+              val oldPlayerHand = playersHands(playerSession)
+              val newPlayerHand = CardStack(oldPlayerHand.cards diff cardsToPlay)
+              val newPlayersHands = playersHands + (playerSession -> newPlayerHand)
+
+              // the corresponding position cards visible by all
+              val playerPositionCards = playerVisibleDeck.deck(positionToPlay)
+              // the corresponding position cards + the cards played for the same position
+              val newPlayerPositionCards = playerPositionCards.cards ++ cardsToPlay
+              log.info(s"Previous Cards: $positionToPlay -> $playerPositionCards")
+              log.info(s"New Cards: $positionToPlay -> $newPlayerPositionCards")
+              // the global player deck visible by all
+              val playerNewDeck = PlayerDeck(playerVisibleDeck.deck ++ Map(positionToPlay -> CardStack(newPlayerPositionCards)))
+              // the global decks of all players
+              val allVisibleDecks = gameState.visibleDeck ++ Map(player._2 -> playerNewDeck)
+
+              val updatedGameState = GameSupervisorActor.GameState(gameState.phase, gameState.deck, allVisibleDecks, newPlayersHands, gameState.playersDroppedCards, currentPlayerOption, gameState.playerIterator)
+              context become playing(updatedGameState)
+
+              if (newPlayerHand.isEmpty) { // => End of current player's turn
+                log.info(s"${player._2.player} finished his turn.")
+                player._1 ! Messages.Game.PlayerTurnEnded
+                players
+                  .filterNot(_._1 == player._1)
+                  .foreach(_._1 ! Messages.Game.UpdateGameState(allVisibleDecks.map(deck => deck._1.player -> deck._2), player._2.player))
+                self ! Messages.Game.PlayTime
+              } else { // Ask More Moves
+                log.info(s"Still ${playerSession.player.name}'s turn...'")
+                self ! Messages.Game.AskMovesAgain(player._1)
+              }
             }
           } else {
             log.info(s"$playerSession is trying to play some cards that he does not own")
@@ -233,19 +260,69 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
           log.info(s"why ? > ${e._2.player.name}")
           sender ! Messages.Game.NotYourTurn
       }
-    case Messages.Player.PlayerInvalidInput =>
-      log.info(s"$sender: invalid moves... Please retry")
+
+    case Messages.Player.PlayerDropsCard(card) =>
+      val allVisibleDecks = gameState.visibleDeck
+      val playersHands = gameState.playersHands
+      val currentPlayerOption = gameState.currentPlayer
+      val phase = gameState.phase
+      currentPlayerOption match {
+        case Some(currentPlayer) if currentPlayer._1 == sender =>
+          val playerHand = playersHands(currentPlayer._2)
+          val playerDroppedCards = gameState.playersDroppedCards(currentPlayer._2)
+          phase match {
+            case FirstDraw =>
+              val msg = "in FirstDraw, no card can be dropped"
+              log.info(msg)
+              sender ! Messages.Game.RefusedCards(List(card), msg)
+            case _ if playerDroppedCards.size < phase.number-1 =>
+              log.info(s"${currentPlayer._2.player.name} drops $card")
+              // Update the dropped Cards List with the new Dropped Card
+              val newPlayerDroppedCard = playerDroppedCards ++ List(card)
+              val newPlayersDroppedCards = gameState.playersDroppedCards + (currentPlayer._2 -> newPlayerDroppedCard)
+              // Update the hand by removing the dropped card
+              val newPlayerHand = CardStack(playerHand.cards diff List(card))
+              val newPlayersHands = playersHands + (currentPlayer._2 -> newPlayerHand)
+              val newGameState = GameSupervisorActor.GameState(gameState.phase, gameState.deck, gameState.visibleDeck, newPlayersHands, newPlayersDroppedCards, gameState.currentPlayer, gameState.playerIterator)
+              context become playing(newGameState)
+
+              if (newPlayerHand.isEmpty) { // => End of current player's turn
+                log.info(s"${currentPlayer._2.player} finished his turn.")
+                currentPlayer._1 ! Messages.Game.PlayerTurnEnded
+                players
+                  .filterNot(_._1 == currentPlayer._1)
+                  .foreach(_._1 ! Messages.Game.UpdateGameState(allVisibleDecks.map(deck => deck._1.player -> deck._2), currentPlayer._2.player))
+                self ! Messages.Game.PlayTime
+              } else { // Ask More Moves
+                log.info(s"Still ${currentPlayer._2.player.name}'s turn...'")
+                self ! Messages.Game.AskMovesAgain(currentPlayer._1)
+              }
+
+            case _ =>
+              val msg = "a card has already been dropped"
+              log.info(s"${currentPlayer._2.player.name}: $msg")
+              sender ! Messages.Game.RefusedCards(List(card), msg)
+              log.info(s"Asking more moves to ${currentPlayer._2.player.name}")
+              sender ! Messages.Game.AskMovesAgain(sender)
+          }
+        case Some(_) =>
+          sender ! Messages.Game.NotYourTurn
+        case None =>
+          log.info(s"Error on PlayerDrops Messages: should not go there ")
+      }
+
+    case Messages.Player.PlayerInvalidInput(reason) =>
+      log.info(s"invalid moves from ${getPlayerFromSender(sender).player.name}: $reason")
       self ! Messages.Game.AskMovesAgain(sender)
 
     case Messages.Game.AskMovesAgain(player) =>
-      val phase = gameState.phase
       val currentPlayerOption = gameState.currentPlayer
       currentPlayerOption match {
         case Some(currentPlayer) if currentPlayer._1 == player =>
           log.info(s"Asking more moves to ${currentPlayer._2.player.name}")
-          val newGameState = GameSupervisorActor.GameState(gameState.phase, gameState.deck, gameState.visibleDeck, gameState.playersHands, currentPlayerOption, gameState.playerIterator)
+          val newGameState = GameSupervisorActor.GameState(gameState.phase, gameState.deck, gameState.visibleDeck, gameState.playersHands, gameState.playersDroppedCards, currentPlayerOption, gameState.playerIterator)
           context become playing(newGameState)
-          currentPlayer._1 ! Messages.Game.AskMoves
+          currentPlayer._1 ! Messages.Game.AskMoves(gameState.phase)
         case Some(_) =>
           sender ! Messages.Game.NotYourTurn
         case None =>
@@ -271,7 +348,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
 
       val handsScoresPerPositionPerPlayer = for {
         (playerSession, playerDeck) <- visibleDeck
-      } yield (playerSession, playerDeck.deck.map(deck => (deck._1, Hand(deck._2))))
+      } yield (playerSession, playerDeck.deck.map(cardStackPosition => (cardStackPosition._1, Hand(cardStackPosition._2))))
 
       val playersScoresPerRow = handsScoresPerPositionPerPlayer.map {
         case (playerSession, playerPositionDeck) => playerPositionDeck map {
@@ -346,7 +423,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
 
   override def receive: Receive = initializing
 
-
+  private def getPlayerFromSender(sender: ActorRef): PlayerSession = players.filter(_._1 == sender).head._2
 
 
   /*

@@ -1,26 +1,26 @@
 package main.scala.com.tomo.common.domain
 
-abstract class Phase(val nbCard: Int) {
+abstract class Phase(val nbCard: Int, val number: Int) {
   def next: Phase
 }
-case object FirstDraw extends Phase(nbCard = 5) {
+case object FirstDraw extends Phase(nbCard = 5, number = 1) {
   override def next: Phase = SecondDraw
 }
-case object SecondDraw extends Phase(nbCard = 3) {
+case object SecondDraw extends Phase(nbCard = 3, number = 2) {
   override def next: Phase = ThirdDraw
 }
-case object ThirdDraw extends Phase(nbCard = 3) {
+case object ThirdDraw extends Phase(nbCard = 3, number = 3) {
   override def next: Phase = FourthDraw
 }
-case object FourthDraw extends Phase(nbCard = 3) {
+case object FourthDraw extends Phase(nbCard = 3, number = 4) {
   override def next: Phase = FifthDraw
 }
-case object FifthDraw extends Phase(nbCard = 3) {
+case object FifthDraw extends Phase(nbCard = 3, number = 5) {
   override def next: Phase = ScoringPhase
 }
-case object ScoringPhase extends Phase(nbCard = -1) {
+case object ScoringPhase extends Phase(nbCard = -1, number = 6) {
   override def next: Phase = NotPlaying
 }
-case object NotPlaying extends Phase(nbCard = -1) {
+case object NotPlaying extends Phase(nbCard = -1, number = -1) {
   override def next: Phase = FirstDraw
 }

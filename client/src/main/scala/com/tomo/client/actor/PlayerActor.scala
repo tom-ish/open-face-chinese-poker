@@ -37,6 +37,9 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
   /* the player hand */
   var myHand: CardStack = CardStack.empty
 
+  /* the player drop deck */
+  var myDroppedCard: Option[Card] = None
+
   /* all players decks */
   var visibleDecks: Map[Player, PlayerDeck] = null
 
@@ -85,6 +88,7 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
       log.info(s"$phase | $card | $i")
       myHand = CardStack(myHand.cards ++ List(card))
       if (phase.nbCard == i+1) {
+        myDroppedCard = None
         val userInstructions =
           s""" ============ $phase ============
             | $myHand
@@ -94,6 +98,7 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
             |   - T=indexesTop
             |   - M=indexesMiddle
             |   - B=indexesBottom
+            |   - D=indexDropDeck
             | Each indexes corresponds to the
             | index of the card in your hand:
             |""".stripMargin
@@ -101,7 +106,8 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
         val cardsWithIndex = myHand.cards.zipWithIndex
         log.info(userInstructions)
         cardsWithIndex.foreach(cardIndex => log.info(s"${cardIndex._2} - ${cardIndex._1}"))
-        visibleDecks(me).deck.foreachEntry((position, stack) => log.info(s"$position = [${stack.cards}]"))
+        visibleDecks(me).deck.toList.reverse.toMap.foreachEntry((position, stack) => log.info(s"$position = [${stack.cards}]"))
+        log.info(s"Dropped Card=${myDroppedCard}")
         log.info("===================================")
       }
     case Messages.Game.PlayTime =>
@@ -129,7 +135,7 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
     case Messages.Game.PlayerTurnEnded =>
       log.info("Your turn is over. Please wait for the others to play")
       context become notPlaying
-    case Messages.Game.AskMoves =>
+    case Messages.Game.AskMoves(phase) =>
       val cardsWithIndex = myHand.cards.zipWithIndex
       cardsWithIndex.foreach(cardIndex => log.info(s"${cardIndex._2} - ${cardIndex._1}"))
       val playerInputFuture = StdIn.readLine()
@@ -140,29 +146,60 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
             val playedPosition = cardsPerPosition._1
             val playedCards = cardsPerPosition._2
 
-            // Check if the moves does not break the rules of the max number of cards in hand
-            if(isValidMove(cardsPerPosition, visibleDecks(me))) {
-              // Update player's hand by removing the cards from inputs
-              myHand = CardStack(myHand.cards diff cardsPerPosition._2)
-              // Update player's deck by adding the played cards from inputs
-              val newPositionVisibleDeck = visibleDecks(me).deck(playedPosition).cards ++ playedCards
-              val newPlayerDeck = visibleDecks(me)
-              val otherPlayersDecks = visibleDecks.filterNot(_._1 == me)
-              visibleDecks = Map(me -> PlayerDeck(newPlayerDeck.deck ++ Map(playedPosition -> CardStack(newPositionVisibleDeck)))) ++ otherPlayersDecks
-              visibleDecks.foreachEntry((player, deck) => log.info(s"$player : ${deck.deck}"))
-              Messages.Player.PlayerMoves(cardsPerPosition)
+            if(playedPosition == DroppedCard) {
+              if(phase == FirstDraw) {
+                val msg = "cannot drop any card during First Draw"
+                log.info(s"Hey! You $msg!")
+                Messages.Player.PlayerInvalidInput(msg)
+              } else {
+                if (!isValidDroppedCard(playedCards)) {
+                  val msg = "already dropped a card, or input is unreadable"
+                  log.info(s"Hey! $msg")
+                  Messages.Player.PlayerInvalidInput(msg)
+                }
+                else {
+                  log.info(s"You dropped ${playedCards.head}")
+                  myDroppedCard = Some(playedCards.head)
+                  myHand = CardStack(myHand.cards diff playedCards)
+                  Messages.Player.PlayerDropsCard(playedCards.head)
+                }
+              }
+            } else if (phase != FirstDraw && myHand.cards.size == playedCards.size && myDroppedCard.isEmpty) {
+              val msg = "no card was dropped this turn"
+              log.info(s"Hey! $msg!")
+              Messages.Player.PlayerInvalidInput(msg)
             } else {
-              Messages.Player.PlayerInvalidInput
+              // Check if the moves does not break the rules of the max number of cards in hand
+              if (isValidMove(cardsPerPosition, visibleDecks(me))) {
+                // Update player's hand by removing the cards from inputs
+                myHand = CardStack(myHand.cards diff cardsPerPosition._2)
+                // Update player's deck by adding the played cards from inputs
+                val newPositionVisibleDeck = visibleDecks(me).deck(playedPosition).cards ++ playedCards
+                val newPlayerDeck = visibleDecks(me)
+                val otherPlayersDecks = visibleDecks.filterNot(_._1 == me)
+                visibleDecks = Map(me -> PlayerDeck(newPlayerDeck.deck ++ Map(playedPosition -> CardStack(newPositionVisibleDeck)))) ++ otherPlayersDecks
+                visibleDecks.toList.reverse.toMap.foreachEntry((player, deck) => log.info(s"${player.name} : ${deck.deck}"))
+                Messages.Player.PlayerMoves(cardsPerPosition)
+              } else {
+                val msg = "too much cards in this position"
+                log.info(s"Hey! There is $msg")
+                Messages.Player.PlayerInvalidInput(msg)
+              }
             }
           case None =>
-            log.info("Couldn't read your inputs")
-            Messages.Player.PlayerInvalidInput
+            val msg = "inputs are unreadable..."
+            log.info(s"Hey! Your $msg")
+            Messages.Player.PlayerInvalidInput(msg)
         })
         .recover{ e =>
-          log.info(s"Error: ${e.getMessage}")
-          Messages.Player.PlayerInvalidInput
+          val msg = "recover" + e.getMessage
+          log.info(s"Error Recover: $msg")
+          Messages.Player.PlayerInvalidInput(msg)
         }
         .pipeTo(sender)
+
+    case Messages.Game.RefusedCards(card, reason) =>
+      log.info(s"Your cards $card were refused because $reason")
   }
 
   def notPlaying: Receive = {
@@ -174,6 +211,8 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
       visibleDecks = allVisibleDeck
     case Messages.Game.DrawTime =>
       context become drawing
+    case Messages.Game.AskMoves(_) =>
+      log.info(s"This is not your turn")
     case Messages.Game.NotYourTurn(player) =>
       log.info(s"This is ${player.name} turn")
   }
@@ -211,6 +250,9 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
   }
 
   override def receive: Receive = connecting
+
+  def isValidDroppedCard(value: List[Card]): Boolean = myDroppedCard.isEmpty && value.size == 1
+
 
   def isValidMove(cardsPerPosition: (Position, List[Card]), playerDeck: PlayerDeck): Boolean = {
     cardsPerPosition._1 match {

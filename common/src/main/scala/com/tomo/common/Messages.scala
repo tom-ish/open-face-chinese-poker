@@ -13,16 +13,19 @@ object Messages {
   object Player {
     case class Accept()
     case class Refuse()
-    trait Interaction
-    case class PlayerMoves(positionMove: (Position, List[Card])) extends Interaction
-    case object PlayerInvalidInput extends Interaction
+    case class PlayerMoves(positionMove: (Position, List[Card]))
+    case class PlayerDropsCard(cards: Card)
+    case class PlayerInvalidInput(reason: String)
+
+
   }
 
   object Game {
     case class Joined(room: GameRoom)
     case class SetUp(opponents: List[Player])
     case class GiveCard(card: Card, phase: Phase, nbCardGiven: Int)
-    case object AskMoves
+    case class RefusedCards(cards: List[Card], reason: String)
+    case class AskMoves(phase: Phase)
     case class AskMovesAgain(playerRef: ActorRef)
     case class UpdateGameState(allVisibleDecks: Map[Player, PlayerDeck], player: Player)
     case class PlayerTurn(phase: Phase)
