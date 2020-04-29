@@ -226,13 +226,13 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
               val newPlayersHands = playersHands + (playerSession -> newPlayerHand)
 
               // the corresponding position cards visible by all
-              val playerPositionCards = playerVisibleDeck.deck(positionToPlay)
+              val playerPositionCards = playerVisibleDeck.positionCardStack(positionToPlay)
               // the corresponding position cards + the cards played for the same position
               val newPlayerPositionCards = playerPositionCards.cards ++ cardsToPlay
               log.info(s"Previous Cards: $positionToPlay -> $playerPositionCards")
               log.info(s"New Cards: $positionToPlay -> $newPlayerPositionCards")
               // the global player deck visible by all
-              val playerNewDeck = PlayerDeck(playerVisibleDeck.deck ++ Map(positionToPlay -> CardStack(newPlayerPositionCards)))
+              val playerNewDeck = PlayerDeck(playerVisibleDeck.positionCardStack ++ Map(positionToPlay -> CardStack(newPlayerPositionCards)))
               // the global decks of all players
               val allVisibleDecks = gameState.visibleDeck ++ Map(player._2 -> playerNewDeck)
 
@@ -348,7 +348,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
 
       val handsScoresPerPositionPerPlayer = for {
         (playerSession, playerDeck) <- visibleDeck
-      } yield (playerSession, playerDeck.deck.map(cardStackPosition => (cardStackPosition._1, Hand(cardStackPosition._2))))
+      } yield (playerSession, playerDeck.positionCardStack.map(cardStackPosition => (cardStackPosition._1, Hand(cardStackPosition._2))))
 
       val playersScoresPerRow = handsScoresPerPositionPerPlayer.map {
         case (playerSession, playerPositionDeck) => playerPositionDeck map {

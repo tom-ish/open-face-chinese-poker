@@ -9,15 +9,15 @@ object PlayerScore {
 }
 
 object PlayerDeck {
-  def empty = PlayerDeck(deck = Map(Bottom -> CardStack.empty, Middle -> CardStack.empty, Top -> CardStack.empty))
+  def empty = PlayerDeck(positionCardStack = Map(Bottom -> CardStack.empty, Middle -> CardStack.empty, Top -> CardStack.empty))
 
   implicit def map2deck(deck: Map[Position, CardStack]) = PlayerDeck(deck)
 }
-case class PlayerDeck(deck: Map[Position, CardStack]) {
-  def merge(cards: PlayerDeck): PlayerDeck = PlayerDeck(deck ++ cards.deck)
-  def add(cards: CardStack, position: Position) = deck + (position -> cards)
+case class PlayerDeck(positionCardStack: Map[Position, CardStack]) {
+  def merge(cards: PlayerDeck): PlayerDeck = PlayerDeck(positionCardStack ++ cards.positionCardStack)
+  def add(cards: CardStack, position: Position) = positionCardStack + (position -> cards)
 
-  override def toString: String = deck.mkString(" | ")
+  override def toString: String = positionCardStack.mkString(" | ")
 }
 
 abstract class Position(val position: Int, val nbCards: Int) extends Ordered[Position]

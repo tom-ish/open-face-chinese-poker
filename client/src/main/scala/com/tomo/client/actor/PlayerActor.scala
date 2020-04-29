@@ -77,8 +77,8 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
   def waitingToStart: Receive = {
     case Messages.Game.SetUp(players) =>
       opponents = players
-      val playersDecks = players map (_ -> PlayerDeck.empty)
-      visibleDecks = Map(me -> PlayerDeck.empty) ++ playersDecks.toMap
+      val playersDecks = players filterNot(_ == me) map (_ -> PlayerDeck.empty)
+      visibleDecks = playersDecks.toMap ++ Map(me -> PlayerDeck.empty)
       log.info(s"You are playing against ${opponents.filterNot(_ == me).mkString(", ")}")
       context become drawing
   }
@@ -106,7 +106,7 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
         val cardsWithIndex = myHand.cards.zipWithIndex
         log.info(userInstructions)
         cardsWithIndex.foreach(cardIndex => log.info(s"${cardIndex._2} - ${cardIndex._1}"))
-        visibleDecks(me).deck.toList.reverse.toMap.foreachEntry((position, stack) => log.info(s"$position = [${stack.cards}]"))
+        visibleDecks(me).positionCardStack.toList.reverse.toMap.foreachEntry((position, stack) => log.info(s"$position = [$stack]"))
         log.info(s"Dropped Card=${myDroppedCard}")
         log.info("===================================")
       }
@@ -138,6 +138,7 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
     case Messages.Game.AskMoves(phase) =>
       val cardsWithIndex = myHand.cards.zipWithIndex
       cardsWithIndex.foreach(cardIndex => log.info(s"${cardIndex._2} - ${cardIndex._1}"))
+
       val playerInputFuture = StdIn.readLine()
       Future(playerInputFuture)
         .map (Utils.readMove(_, myHand.cards) match {
@@ -174,11 +175,16 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
                 // Update player's hand by removing the cards from inputs
                 myHand = CardStack(myHand.cards diff cardsPerPosition._2)
                 // Update player's deck by adding the played cards from inputs
-                val newPositionVisibleDeck = visibleDecks(me).deck(playedPosition).cards ++ playedCards
+                val newPositionVisibleDeck = visibleDecks(me).positionCardStack(playedPosition).cards ++ playedCards
                 val newPlayerDeck = visibleDecks(me)
                 val otherPlayersDecks = visibleDecks.filterNot(_._1 == me)
-                visibleDecks = Map(me -> PlayerDeck(newPlayerDeck.deck ++ Map(playedPosition -> CardStack(newPositionVisibleDeck)))) ++ otherPlayersDecks
-                visibleDecks.toList.reverse.toMap.foreachEntry((player, deck) => log.info(s"${player.name} : ${deck.deck}"))
+                visibleDecks = Map(me -> PlayerDeck(newPlayerDeck.positionCardStack ++ Map(playedPosition -> CardStack(newPositionVisibleDeck)))) ++ otherPlayersDecks
+                visibleDecks.toList.reverse.toMap.foreachEntry { (player, deck) =>
+                  log.info(s"======== ${player.name} board ========")
+                  deck.positionCardStack.toList.reverse.toMap.foreachEntry((position, cardStack) =>
+                    log.info(s"$position : [$cardStack]")
+                  )
+                }
                 Messages.Player.PlayerMoves(cardsPerPosition)
               } else {
                 val msg = "too much cards in this position"
@@ -256,9 +262,9 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
 
   def isValidMove(cardsPerPosition: (Position, List[Card]), playerDeck: PlayerDeck): Boolean = {
     cardsPerPosition._1 match {
-      case Top    if playerDeck.deck(Top).cards.size    + cardsPerPosition._2.size > 3 => false
-      case Bottom if playerDeck.deck(Bottom).cards.size + cardsPerPosition._2.size > 5 => false
-      case Middle if playerDeck.deck(Middle).cards.size + cardsPerPosition._2.size > 5 => false
+      case Top    if playerDeck.positionCardStack(Top).cards.size    + cardsPerPosition._2.size > 3 => false
+      case Bottom if playerDeck.positionCardStack(Bottom).cards.size + cardsPerPosition._2.size > 5 => false
+      case Middle if playerDeck.positionCardStack(Middle).cards.size + cardsPerPosition._2.size > 5 => false
       case _ => true
     }
 /*
