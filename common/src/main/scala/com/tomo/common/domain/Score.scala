@@ -2,6 +2,18 @@ package main.scala.com.tomo.common.domain
 
 import main.scala.com.tomo.common.domain.Hand._
 
+/*
+trait commonScore {
+}
+object Hand3 {
+  type Hand = (Card, Card, Card)
+  def apply(cardStack: CardStack): Hand = {
+    val List(card1, card2, card3) = cardStack.cards
+    (card1, card2, card3)
+  }
+}
+*/
+
 object Hand {
   type Hand = (Card, Card, Card, Card, Card)
 

@@ -8,13 +8,13 @@ object PlayerScore {
   val zero = PlayerScore(0)
 }
 
-object PlayerDeck {
-  def empty = PlayerDeck(positionCardStack = Map(Bottom -> CardStack.empty, Middle -> CardStack.empty, Top -> CardStack.empty))
+object PlayerBoard {
+  def empty = PlayerBoard(positionCardStack = Map(Top -> CardStack.empty, Middle -> CardStack.empty, Bottom -> CardStack.empty, DroppedCard -> CardStack.empty))
 
-  implicit def map2deck(deck: Map[Position, CardStack]) = PlayerDeck(deck)
+  implicit def map2deck(deck: Map[Position, CardStack]) = PlayerBoard(deck)
 }
-case class PlayerDeck(positionCardStack: Map[Position, CardStack]) {
-  def merge(cards: PlayerDeck): PlayerDeck = PlayerDeck(positionCardStack ++ cards.positionCardStack)
+case class PlayerBoard(positionCardStack: Map[Position, CardStack]) {
+  def merge(cards: PlayerBoard): PlayerBoard = PlayerBoard(positionCardStack ++ cards.positionCardStack)
   def add(cards: CardStack, position: Position) = positionCardStack + (position -> cards)
 
   override def toString: String = positionCardStack.mkString(" | ")
@@ -30,6 +30,6 @@ case object Middle extends Position(position = 1, nbCards = 5) {
 case object Bottom extends Position(position = 2, nbCards = 5) {
   override def compare(that: Position): Int = Ordering[Int].compare(position, that.position)
 }
-case object DroppedCard extends Position(position = -1, nbCards = -1) {
+case object DroppedCard extends Position(position = -1, nbCards = 4) {
   override def compare(that: Position): Int = Ordering[Int].compare(position, that.position)
 }

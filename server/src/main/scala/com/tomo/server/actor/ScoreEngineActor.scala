@@ -2,13 +2,13 @@ package com.tomo.server.actor
 
 import akka.actor.{Actor, ActorLogging, Props}
 import main.scala.com.tomo.common.Messages
-import main.scala.com.tomo.common.domain.{Card, PlayerDeck, PlayerSession}
+import main.scala.com.tomo.common.domain.{Card, PlayerBoard, PlayerSession}
 
 object ScoreEngineActor {
-  def props(finalDeck: Map[PlayerSession, PlayerDeck]) = Props(new ScoreEngineActor(finalDeck))
+  def props(finalDeck: Map[PlayerSession, PlayerBoard]) = Props(new ScoreEngineActor(finalDeck))
 }
 
-class ScoreEngineActor(val playersDecks: Map[PlayerSession, PlayerDeck]) extends Actor with ActorLogging {
+class ScoreEngineActor(val playersDecks: Map[PlayerSession, PlayerBoard]) extends Actor with ActorLogging {
   override def receive: Receive = computeScore
 
   def computeScore: Receive = {

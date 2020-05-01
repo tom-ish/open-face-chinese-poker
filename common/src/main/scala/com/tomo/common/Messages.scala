@@ -14,20 +14,24 @@ object Messages {
     case class Accept()
     case class Refuse()
     case class PlayerMoves(positionMove: (Position, List[Card]))
+    case class PlayerCompleteMoves(positionMoves: Map[Position, List[Card]])
     case class PlayerDropsCard(cards: Card)
     case class PlayerInvalidInput(reason: String)
-
-
+    case class AskMoves(phase: Phase)
+    case class ConfirmMoves(phase: Phase)
   }
 
   object Game {
     case class Joined(room: GameRoom)
     case class SetUp(opponents: List[Player])
     case class GiveCard(card: Card, phase: Phase, nbCardGiven: Int)
+    case class SendHand(hand: CardStack, phase: Phase)
     case class RefusedCards(cards: List[Card], reason: String)
+    case class InvalidInputs(phase: Phase, reason: String, player: PlayerSession)
     case class AskMoves(phase: Phase)
     case class AskMovesAgain(playerRef: ActorRef)
-    case class UpdateGameState(allVisibleDecks: Map[Player, PlayerDeck], player: Player)
+    case object MovesAccepted
+    case class UpdateGameState(allVisibleDecks: Map[Player, PlayerBoard], lastPlayer: Player)
     case class PlayerTurn(phase: Phase)
     case object PlayerTurnEnded
     case object DrawTime
@@ -51,6 +55,7 @@ object Messages {
       def apply(t: Throwable): Reason.ErrorOccured = Reason.ErrorOccured(t)
     }
     case class Terminate(reason: Terminate.Reason)
+
 
   }
 

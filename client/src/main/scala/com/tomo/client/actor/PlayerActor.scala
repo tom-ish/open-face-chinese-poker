@@ -41,7 +41,7 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
   var myDroppedCard: Option[Card] = None
 
   /* all players decks */
-  var visibleDecks: Map[Player, PlayerDeck] = null
+  var visibleDecks: Map[Player, PlayerBoard] = null
 
   /* reset the game state. This is usually called before restarting the game */
   def resetState = {
@@ -77,8 +77,8 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
   def waitingToStart: Receive = {
     case Messages.Game.SetUp(players) =>
       opponents = players
-      val playersDecks = players filterNot(_ == me) map (_ -> PlayerDeck.empty)
-      visibleDecks = playersDecks.toMap ++ Map(me -> PlayerDeck.empty)
+      val playersDecks = players filterNot(_ == me) map (_ -> PlayerBoard.empty)
+      visibleDecks = playersDecks.toMap ++ Map(me -> PlayerBoard.empty)
       log.info(s"You are playing against ${opponents.filterNot(_ == me).mkString(", ")}")
       context become drawing
   }
@@ -178,7 +178,7 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
                 val newPositionVisibleDeck = visibleDecks(me).positionCardStack(playedPosition).cards ++ playedCards
                 val newPlayerDeck = visibleDecks(me)
                 val otherPlayersDecks = visibleDecks.filterNot(_._1 == me)
-                visibleDecks = Map(me -> PlayerDeck(newPlayerDeck.positionCardStack ++ Map(playedPosition -> CardStack(newPositionVisibleDeck)))) ++ otherPlayersDecks
+                visibleDecks = Map(me -> PlayerBoard(newPlayerDeck.positionCardStack ++ Map(playedPosition -> CardStack(newPositionVisibleDeck)))) ++ otherPlayersDecks
                 visibleDecks.toList.reverse.toMap.foreachEntry { (player, deck) =>
                   log.info(s"======== ${player.name} board ========")
                   deck.positionCardStack.toList.reverse.toMap.foreachEntry((position, cardStack) =>
@@ -260,7 +260,7 @@ class PlayerActor extends Actor with DiagnosticActorLogging {
   def isValidDroppedCard(value: List[Card]): Boolean = myDroppedCard.isEmpty && value.size == 1
 
 
-  def isValidMove(cardsPerPosition: (Position, List[Card]), playerDeck: PlayerDeck): Boolean = {
+  def isValidMove(cardsPerPosition: (Position, List[Card]), playerDeck: PlayerBoard): Boolean = {
     cardsPerPosition._1 match {
       case Top    if playerDeck.positionCardStack(Top).cards.size    + cardsPerPosition._2.size > 3 => false
       case Bottom if playerDeck.positionCardStack(Bottom).cards.size + cardsPerPosition._2.size > 5 => false

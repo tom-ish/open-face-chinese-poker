@@ -28,6 +28,12 @@ object Utils {
     scala.io.StdIn.readLine()
   }
 
+  def readYesNo(input: String): Option[Boolean] = input match {
+    case "Y" => Some(true)
+    case "N" => Some(false)
+    case _ => None
+  }
+
   def readMove(input: String, playerCards: List[Card]): Option[(Position, List[Card])] = {
     val p = input split "="
     val moves = p(1)

@@ -14,8 +14,8 @@ import scala.language.postfixOps
 
 object GameSupervisorActor {
 
-  case class GameState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerDeck], playersHands: Map[PlayerSession, CardStack], playersDroppedCards: Map[PlayerSession, List[Card]], currentPlayer: Option[(ActorRef, PlayerSession)], playerIterator: Iterator[(ActorRef, PlayerSession)])
-  case class DrawState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerDeck], playersHands: Map[PlayerSession, CardStack], playersDroppedCards: Map[PlayerSession, List[Card]], nbCardsDistributed: Int, playerIterator: Iterator[(ActorRef, PlayerSession)])
+  case class GameState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerBoard], playersHands: Map[PlayerSession, CardStack], playersDroppedCards: Map[PlayerSession, List[Card]], currentPlayer: Option[(ActorRef, PlayerSession)], playerIterator: Iterator[(ActorRef, PlayerSession)])
+  case class DrawState(phase: Phase, deck: CardStack, visibleDeck: Map[PlayerSession, PlayerBoard], playersHands: Map[PlayerSession, CardStack], playersDroppedCards: Map[PlayerSession, List[Card]], nbCardsDistributed: Int, playerIterator: Iterator[(ActorRef, PlayerSession)])
   case object UnavailableRequest
 
   object Messages {
@@ -41,7 +41,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
     // INTRODUCE PLAYERS
     playersSessions.foreach(_.ref ! Messages.Game.SetUp(playersSessions.map(_.player)))
 
-    val emptyVisibleDeck = playersSessions map(_ -> PlayerDeck.empty)
+    val emptyVisibleDeck = playersSessions map(_ -> PlayerBoard.empty)
     val emptyPlayersHands = playersSessions map (_ -> CardStack.empty)
     val emptyPlayersDroppedCards = playersSessions map (_ -> List.empty)
     val initialDrawState = GameSupervisorActor.DrawState(FirstDraw, deck, emptyVisibleDeck.toMap, emptyPlayersHands.toMap, emptyPlayersDroppedCards.toMap, 0, players.iterator)
@@ -232,7 +232,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
               log.info(s"Previous Cards: $positionToPlay -> $playerPositionCards")
               log.info(s"New Cards: $positionToPlay -> $newPlayerPositionCards")
               // the global player deck visible by all
-              val playerNewDeck = PlayerDeck(playerVisibleDeck.positionCardStack ++ Map(positionToPlay -> CardStack(newPlayerPositionCards)))
+              val playerNewDeck = PlayerBoard(playerVisibleDeck.positionCardStack ++ Map(positionToPlay -> CardStack(newPlayerPositionCards)))
               // the global decks of all players
               val allVisibleDecks = gameState.visibleDeck ++ Map(player._2 -> playerNewDeck)
 
@@ -342,7 +342,7 @@ class GameSupervisorActor(val room: GameRoom) extends Actor with DiagnosticActor
     case _ => s.sliding(2).forall { case Seq(x, y) => ord.lteq(x, y) }
   }
 
-  def computeScore(visibleDeck: Map[PlayerSession, PlayerDeck]): Receive = {
+  def computeScore(visibleDeck: Map[PlayerSession, PlayerBoard]): Receive = {
     case Messages.Score.GetBoardPointWinner =>
       val scoreComputer = context.actorOf(ScoreEngineActor.props(visibleDeck), "score-engine")
 
