@@ -69,17 +69,17 @@ class ScoreEngineSpec extends AnyFlatSpec {
 
   "A Score Engine (between two Straight)" should "consider first hand stronger than second" in {
     val firstHand = Hand(CardStack(List(
-      Card(Rank.Nine(), Suit.Hearts()),
-      Card(Rank.Eight(), Suit.Clubs()),
-      Card(Rank.Ten(), Suit.Diamonds()),
-      Card(Rank.Six(), Suit.Spades()),
-      Card(Rank.Seven(), Suit.Hearts()))))
-    val secondHand = Hand(CardStack(List(
       Card(Rank.Six(), Suit.Diamonds()),
       Card(Rank.Two(), Suit.Clubs()),
       Card(Rank.Four(), Suit.Hearts()),
       Card(Rank.Five(), Suit.Spades()),
       Card(Rank.Three(), Suit.Clubs()))))
+    val secondHand = Hand(CardStack(List(
+      Card(Rank.Nine(), Suit.Hearts()),
+      Card(Rank.Eight(), Suit.Clubs()),
+      Card(Rank.Ten(), Suit.Diamonds()),
+      Card(Rank.Six(), Suit.Spades()),
+      Card(Rank.Seven(), Suit.Hearts()))))
 
     // WHEN POSITION = BOTTOM
     val lowerStraightBottom = Hand.evaluate(firstHand, Bottom)
@@ -190,6 +190,4 @@ class ScoreEngineSpec extends AnyFlatSpec {
     assert(lowerSinglePairsMiddle.royalties == higherSinglePairsMiddle.royalties)
     assert(lowerSinglePairsMiddle.evaluateScore < higherSinglePairsMiddle.evaluateScore)
   }
-
-  
 }

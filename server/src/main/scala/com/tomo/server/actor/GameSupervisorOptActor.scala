@@ -320,8 +320,10 @@ class GameSupervisorOptActor(val room: GameRoom) extends Actor with DiagnosticAc
       val handsScoresPerPositionPerPlayer = for {
         (playerSession, playerDeck) <- visibleDeck
       } yield (playerSession, playerDeck.positionCardStack.map { cardStackPosition =>
-      if(cardStackPosition._1 == Top) (Top, Hand(cardStackPosition._2))
-      else (cardStackPosition._1, Hand(cardStackPosition._2))
+      if(cardStackPosition._1 == Top)
+        (Top, Hand(cardStackPosition._2))
+      else
+        (cardStackPosition._1, Hand(cardStackPosition._2))
       })
 
       val playersScoresPerRow = handsScoresPerPositionPerPlayer.map {

@@ -15,47 +15,51 @@ object Hand3 {
 */
 
 object Hand {
-  type Hand = (Card, Card, Card, Card, Card)
+  type Hand = List[Card]
 
-  def apply(cardStack: CardStack): Hand = {
-    val List(card1, card2, card3, card4, card5) = cardStack.cards
-    (card1, card2, card3, card4, card5)
-  }
+  def apply(cardStack: CardStack): Hand = cardStack.cards
 
-  def toRanks(hand: Hand): List[Rank] = {
-    val (card1, card2, card3, card4, card5) = hand
-    List(card1.rank, card2.rank, card3.rank, card4.rank, card5.rank).sorted
-  }
+  def toRanks(hand: Hand): List[Rank] = hand.map(_.rank).sortBy(_.value)
 
-  def toRankValues(hand: Hand): List[Int] = {
-    val (card1, card2, card3, card4, card5) = hand
-    List(card1.rank.value, card2.rank.value, card3.rank.value, card4.rank.value, card5.rank.value).sorted
-  }
+  def toRankValues(hand: Hand): List[Int] = hand.map(_.rank.value).sorted
 
   def toRankSizes(hand: Hand): List[Int] = {
-    toRanks(hand).groupBy(identity).map {
-      case (_, listOfRanks) => listOfRanks.size
+    toRanks(hand).reverse.groupBy(identity).map {
+      case (_, listOfRanks) =>
+        listOfRanks.size
     }.toList
   }
 
-  def toSuits(hand: Hand): List[Suit] = {
-    val (card1, card2, card3, card4, card5) = hand
-    List(card1.suit, card2.suit, card3.suit, card4.suit, card5.suit)
-  }
+  def toSuits(hand: Hand): List[Suit] = hand map (_.suit)
+
 
   def getHighsLows(hand: Hand, highs: (Int, Int), lows: (Int, Int)) = {
-    toRanks(hand).groupBy(identity).map {
-      case (rank, listOfRank) if listOfRank.size == highs._1 =>
+    toRanks(hand).reverse.groupBy(identity).map {
+      case (rank, listOfRank) if listOfRank.size == highs._1=>
+        println(rank.value * highs._2)
+        println(s"rank: ${rank.value} high: $highs  low: $lows")
         rank.value * highs._2
       case (rank, listOfRank) if listOfRank.size == lows._1 =>
+        println(rank.value * lows._2)
+        println(s"rank: ${rank.value} high: $highs  low: $lows")
         rank.value * lows._2
-      case _ =>
-        0
+      case (rank, listOfRank) if listOfRank.size == 1 =>
+        rank.value
+      case (_, _) => 0
     }.sum
   }
 
+  def getTwoPairsScore(hand: Hand, highBase: Int, lowBase: Int) = {
+    val sortedGroupedRankValues = toRankValues(hand).reverse.groupBy(identity)
+    val sortedGroupedPairsRankValues = sortedGroupedRankValues.filter(_._2.size == 2)
+    val highPairRank = sortedGroupedPairsRankValues.head._1
+    val lowPairRank = sortedGroupedPairsRankValues.tail.head._1
+    val singleCardRank = sortedGroupedRankValues.filter(_._2.size == 1).head._1
+    highPairRank * highBase + lowPairRank * lowBase + singleCardRank
+  }
+
   def getHighsValue(hand: Hand, highs: Int) = {
-    toRankValues(hand).groupBy(identity).filter (_._2.size == highs).head._1
+    toRankValues(hand).reverse.groupBy(identity).filter (_._2.size == highs).head._1
   }
 
   def isRoyalFlush(hand: Hand) = {
@@ -69,21 +73,23 @@ object Hand {
 
   def isFullHouse(hand: Hand): Boolean = {
     val rankSizes = toRankSizes(hand)
-    rankSizes.contains(3) && rankSizes.contains(2)
+    hand.size == 5 && rankSizes.contains(3) && rankSizes.contains(2)
   }
 
-  def isFlush(hand: Hand): Boolean = toSuits(hand).forall(_ == hand._1.suit)
+  def isFlush(hand: Hand): Boolean = hand.size == 5 && toSuits(hand).forall(_ == hand.head.suit)
 
   def isStraight(hand: Hand): Boolean = {
     val rankValues = toRankValues(hand)
     val minRank = rankValues.min
-    rankValues.toSet == minRank.to(minRank + 4).toSet ||
-      rankValues.sorted.toSet == List(2 to 5, 14).toSet // corner case: Straight from Ace to Five
+    hand.size == 5 && (rankValues.toSet == minRank.to(minRank + 4).toSet ||
+      rankValues.sorted == (2 to 5).toList ++ List(14)) // corner case: Straight from Ace to Five
   }
 
   def isThreeOfAKind(hand: Hand): Boolean = toRankSizes(hand).contains(3)
 
-  def isTwoPairs(hand: Hand): Boolean = toRankSizes(hand).count(_ == 2) == 2
+  def isTwoPairs(hand: Hand): Boolean = {
+    hand.size == 5 && toRankSizes(hand).count(_ == 2) == 2
+  }
 
   def isSinglePair(hand: Hand): Boolean = toRankSizes(hand).count(_ == 2) == 1
 
@@ -103,7 +109,7 @@ object Hand {
 
 abstract class HandType(val name: String, val strength: Int, position: Position) {
   def royalties: Int
-  def evaluateScore(hand: Hand): Int
+  def evaluateScore: Int
 }
 
 object HandType {
@@ -114,9 +120,7 @@ object HandType {
       case Middle => 50
       case Top => throw new RuntimeException("Error: cannot have RoyalFlush in Top Position")
     }
-
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
-      toRankValues(hand).sum
+    override def evaluateScore: Int = 10 + 11 + 12 + 13 + 14
   }
   case class StraightFlush(hand: Hand, row: Position)
     extends HandType(name = "StraightFlush", strength = 9, position = row) {
@@ -126,7 +130,7 @@ object HandType {
       case Top => throw new RuntimeException("Error: cannot have StraightFlush in Top Position")
     }
 
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
+    override def evaluateScore: Int =
       toRankValues(hand).sum
   }
   case class FourOfAKind(hand: Hand, row: Position)
@@ -137,7 +141,7 @@ object HandType {
       case Top => throw new RuntimeException("Error: cannot have FourOfAKind in Top Position")
     }
 
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
+    override def evaluateScore: Int =
       getHighsLows(hand, highs = (4, 100), lows = (1, 1))
   }
   case class FullHouse(hand: Hand, row: Position)
@@ -148,8 +152,8 @@ object HandType {
       case Top => throw new RuntimeException("Error: cannot have FullHouse in Top Position")
     }
 
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
-      getHighsLows(hand, highs = (3, 1000), lows = (2, 100))
+    override def evaluateScore: Int =
+      getHighsLows(hand, highs = (3, 1000), lows = (2, 10))
   }
   case class Flush(hand: Hand, row: Position)
     extends HandType(name = "Flush", strength = 6, position = row) {
@@ -159,7 +163,7 @@ object HandType {
       case Top => throw new RuntimeException("Error: cannot have Flush in Top Position")
     }
 
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
+    override def evaluateScore: Int =
       toRankValues(hand).sum
   }
   case class Straight(hand: Hand, row: Position)
@@ -170,7 +174,7 @@ object HandType {
       case Top => throw new RuntimeException("Error: cannot have Straight in Top Position")
     }
 
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
+    override def evaluateScore: Int =
       toRankValues(hand).sum
   }
   case class ThreeOfAKind(hand: Hand, row: Position)
@@ -181,13 +185,13 @@ object HandType {
       case Top => getHighsValue(hand, 3) + 8
     }
 
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
+    override def evaluateScore: Int =
       getHighsLows(hand, highs = (3, 100), lows = (1, 1))
   }
   case class TwoPairs(hand: Hand, row: Position)
-    extends HandType(name = "TwoPair", strength = 3, position = row) {
+    extends HandType(name = "TwoPairs", strength = 3, position = row) {
     override def royalties: Int = 0
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int = ???
+    override def evaluateScore: Int = getTwoPairsScore(hand, 400, 50)
   }
   case class SinglePair(hand: Hand, row: Position)
     extends HandType(name = "SinglePair", strength = 2, position = row) {
@@ -195,13 +199,13 @@ object HandType {
       case Top if getHighsValue(hand, 2) > 5 => getHighsValue(hand, 2) - 5
       case _ => 0
     }
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
+    override def evaluateScore: Int =
       getHighsLows(hand, (2, 100), (1, 1))
   }
   case class HighCards(hand: Hand, row: Position) extends
     HandType(name = "HighCard", strength = 1, position = row) {
     override def royalties: Int = 0
-    override def evaluateScore(hand: (Card, Card, Card, Card, Card)): Int =
+    override def evaluateScore: Int =
       toRankValues(hand).sum
   }
 }

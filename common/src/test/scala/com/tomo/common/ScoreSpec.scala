@@ -273,10 +273,10 @@ class ScoreSpec extends AnyFlatSpec {
       Card(Rank.Ace(), Suit.Hearts())
     )))
 
-    val singlePairHand = Hand.evaluate(singlePair, Bottom)
+    val singlePairHand = Hand.evaluate(singlePair, Top)
     assert(singlePairHand.strength == 2)
     assert(singlePairHand.name == "SinglePair")
-    assert(singlePairHand.evaluateScore == 1400 + 5+10+11)
+    assert(singlePairHand.evaluateScore == 1405)
     assert(singlePairHand.royalties == 9)
   }
 }

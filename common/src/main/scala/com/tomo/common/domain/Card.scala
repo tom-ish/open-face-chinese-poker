@@ -4,16 +4,8 @@ import main.scala.com.tomo.common.Utils
 
 import scala.util.Random
 
-abstract class Suit(val name: String, val shortName: String) extends Serializable {
-  override def equals(obj: Any): Boolean = obj match {
-    case that: Suit => name == that.name && shortName == that.shortName
-  }
-}
-abstract class Rank(val value: Int, val name: String, val shortName: String) extends Serializable with Ordered[Rank] {
-  override def equals(obj: Any): Boolean = obj match {
-    case that: Rank => value == that.value && name == that.name && shortName == that.shortName
-  }
-}
+abstract class Suit(val name: String, val shortName: String) extends Serializable
+abstract class Rank(val value: Int, val name: String, val shortName: String) extends Serializable
 
 object Suit {
   case class Clubs() extends Suit("Clubs", "♣")
@@ -32,59 +24,20 @@ object Suit {
   }
 }
 
-object Rank {
-  case class Ace() extends Rank(14, "Ace", "A") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Two() extends Rank(2, "Two", "2") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Three() extends Rank(3, "Three", "3") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Four() extends Rank(4, "Four", "4") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Five() extends Rank(5, "Five", "5") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Six() extends Rank(6, "Six", "6") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Seven() extends Rank(7, "Seven", "7") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Eight() extends Rank(8, "Eight", "8") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Nine() extends Rank(9, "Nine", "9") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Ten() extends Rank(10, "Ten", "10") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Jack() extends Rank(11, "Jack", "J") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class Queen() extends Rank(12, "Queen", "Q") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
-  case class King() extends Rank(13, "King", "K") {
-    override def compare(that: Rank): Int =
-      Ordering[Int].compare(value, that.value)
-  }
+object Rank extends {
+  case class Ace() extends Rank(14, "Ace", "A")
+  case class Two() extends Rank(2, "Two", "2")
+  case class Three() extends Rank(3, "Three", "3")
+  case class Four() extends Rank(4, "Four", "4")
+  case class Five() extends Rank(5, "Five", "5")
+  case class Six() extends Rank(6, "Six", "6") 
+  case class Seven() extends Rank(7, "Seven", "7")
+  case class Eight() extends Rank(8, "Eight", "8")
+  case class Nine() extends Rank(9, "Nine", "9")
+  case class Ten() extends Rank(10, "Ten", "10")
+  case class Jack() extends Rank(11, "Jack", "J")
+  case class Queen() extends Rank(12, "Queen", "Q")
+  case class King() extends Rank(13, "King", "K")
 
   def all: List[Rank] = List(Ace(), Two(), Three(), Four(), Five(), Six(), Seven(), Eight(), Nine(), Ten(), Jack(), Queen(), King())
 
@@ -124,7 +77,7 @@ object Rank {
   }
 }
 
-object Card {
+object Card extends {
   private val pattern = "^([AJKQ2-9])\\s*([♣♠♦♥])$".r
 
   def fullDeck: List[Card] = for {
@@ -138,14 +91,9 @@ object Card {
   }
 }
 
-case class Card(rank: Rank, suit: Suit) extends Ordered[Card] {
+case class Card(rank: Rank, suit: Suit) {
   def name(): String = s"${rank.name} of ${suit.name}"
   def shortName(): String = s"${rank.shortName}${suit.shortName}"
-
-  override def compare(that: Card): Int = {
-    Ordering[Int].compare(this.rank.value, that.rank.value)
-  }
-
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Card]
 
